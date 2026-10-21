@@ -12,6 +12,7 @@ vulkan = ["burn/vulkan"]
 [dependencies]
 burn = { version = "0.22.1", features = ["signal"], default-features = false }
 burn-store = "0.22.1"
+half = "2.7"
 
 [target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))'.dependencies]
 burn = { version = "0.22.1", default-features = false, features = [

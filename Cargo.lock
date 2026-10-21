@@ -3199,6 +3199,7 @@ dependencies = [
  "burn",
  "burn-onnx",
  "burn-store",
+ "half",
 ]
 
 [[package]]
