@@ -1,4 +1,4 @@
-use std::{error::Error, path::PathBuf};
+use std::{error::Error, io, path::PathBuf};
 
 use burn_onnx::ModelGen;
 use hf_hub::{HFClient, HFResult};
@@ -50,15 +50,51 @@ pub(crate) async fn process_model() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed={}", input_path.display());
 
     let input = input_path.to_string_lossy().into_owned();
-    let output = out_dir.to_string_lossy().into_owned();
+    let output = out_dir.with_extension("").to_string_lossy().into_owned();
 
     task::spawn_blocking(move || {
         ModelGen::new()
             .input(&input)
-            .out_dir(output.trim_end_matches(".onnx"))
+            .out_dir(&output)
             .run_from_script();
     })
     .await?;
+
+    let model_name = out_dir
+        .file_stem()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid model output path"))?;
+
+    let source_bpk = out_dir
+        .with_extension("")
+        .join(model_name)
+        .with_extension("bpk");
+
+    if !fs::try_exists(&source_bpk).await? {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "generated model weights not found: {}",
+                source_bpk.display()
+            ),
+        )
+        .into());
+    }
+
+    let cargo_out_dir = PathBuf::from(
+        std::env::var_os("OUT_DIR")
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "OUT_DIR is not set"))?,
+    );
+
+    let target_dir = get_data_dir(&cargo_out_dir)?;
+    fs::create_dir_all(&target_dir).await?;
+
+    let target_bpk = target_dir.join(source_bpk.file_name().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidData, "invalid model weights filename")
+    })?);
+
+    fs::copy(&source_bpk, &target_bpk).await?;
+
+    println!("Model weights ready: {}", target_bpk.display());
 
     Ok(())
 }

@@ -147,7 +147,7 @@ pub(crate) async fn process_voices() -> Result<(), Box<dyn Error>> {
         println!("Updated voice lookup cache: {}", lookup_cache.display());
     }
 
-    let target_dir = cargo_profile_dir(&out_dir)?.join("data");
+    let target_dir = get_data_dir(&out_dir)?;
 
     fs::create_dir_all(&target_dir).await?;
 
@@ -532,23 +532,4 @@ async fn copy_if_updated(source: &Path, target: &Path) -> io::Result<()> {
     fs::copy(source, target).await?;
 
     Ok(())
-}
-
-fn cargo_profile_dir(out_dir: &Path) -> io::Result<PathBuf> {
-    let build_dir = out_dir
-        .ancestors()
-        .find(|path| path.file_name().and_then(|name| name.to_str()) == Some("build"))
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                "could not locate Cargo build directory from OUT_DIR",
-            )
-        })?;
-
-    build_dir.parent().map(Path::to_path_buf).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "could not locate Cargo profile directory",
-        )
-    })
 }
