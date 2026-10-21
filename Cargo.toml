@@ -21,6 +21,9 @@ tokio = { version = "1.54.0", default-features = false, features = [
     "sync",
 ] }
 
+# compression
+zstd = "0.14.3"
+
 # data structures & math
 half = "2.7"
 hashbrown = "0.17.1"
@@ -75,6 +78,7 @@ tokio = { version = "1.54.0", default-features = false, features = [
     "rt-multi-thread",
     "sync",
 ] }
+zstd = "0.14.3"
 
 [build]
 jobs = 6
