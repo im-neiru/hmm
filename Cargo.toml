@@ -80,6 +80,7 @@ tokio = { version = "1.54.0", default-features = false, features = [
 ] }
 zstd = "0.14.3"
 serde = "1.0.229"
+zip = "9.0.5"
 
 [build]
 jobs = 6
