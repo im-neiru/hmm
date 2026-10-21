@@ -14,14 +14,16 @@ enum Backend {
     Rocm,
     Vulkan,
     Metal,
+    Cpu,
 }
 
 impl Backend {
-    const ALL: [Backend; 4] = [
+    const ALL: [Backend; 5] = [
         Backend::Cuda,
         Backend::Rocm,
         Backend::Vulkan,
         Backend::Metal,
+        Backend::Cpu,
     ];
 
     fn name(self) -> &'static str {
@@ -30,6 +32,7 @@ impl Backend {
             Backend::Rocm => "rocm",
             Backend::Vulkan => "vulkan",
             Backend::Metal => "metal",
+            Backend::Cpu => "cpu",
         }
     }
 
@@ -47,6 +50,7 @@ impl Backend {
                 target_os = "android"
             )),
             Backend::Metal => cfg!(any(target_os = "macos", target_os = "ios")),
+            Backend::Cpu => true,
         }
     }
 }
@@ -176,6 +180,11 @@ fn candidates(backend: Backend, attempts: &mut Vec<String>) -> Vec<(String, Devi
             {
                 out.push((format!("metal #{i} ({d:?})"), d));
             }
+        }
+
+        Backend::Cpu => {
+            let device = Device::cpu();
+            out.push((format!("cpu ({device:?})"), device));
         }
 
         #[allow(unreachable_patterns)]
