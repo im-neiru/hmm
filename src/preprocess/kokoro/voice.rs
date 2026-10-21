@@ -1,36 +1,35 @@
 use std::{
     error::Error,
-    io,
+    fs::File,
+    io::{self, Read},
     path::{Path, PathBuf},
     sync::Arc,
 };
 
+use heck::ToTitleCase;
 use hf_hub::{HFClient, HFResult};
-use pytorch_reader::{DType, PytorchReader};
 use tokio::{fs, sync::Semaphore, task, task::JoinSet};
+use zip::ZipArchive;
 
 use super::super::*;
 
 #[path = "../../schema/kokoro_voice.rs"]
 mod schema;
 
-use schema::{FORMAT_VERSION, STYLE_WIDTH, VoiceAccent, VoiceCollection, VoiceEntry};
+use schema::{FORMAT_VERSION, STYLE_WIDTH, VoiceAccent, VoiceCollection, VoiceEntry, VoiceGender};
 
 const REPO_OWNER: &str = "hexgrad";
 const REPO_NAME: &str = "Kokoro-82M";
 const REPO_DIR: &str = "voices";
 const VOICES_DIR: &str = "voices/kokoro";
-
 const COLLECTION_FILE: &str = "collection.data";
 const BUNDLE_RELATIVE_PATH: &str = "voices/kokoro.bin";
-
 const MAX_FRAMES: usize = 510;
 const MAX_WORKERS: usize = 4;
 const ZSTD_LEVEL: i32 = 12;
 
 async fn download_kokoro_voices() -> HFResult<PathBuf> {
     let output_dir = resolve_manifest_path(VOICES_DIR, "");
-
     fs::create_dir_all(&output_dir).await?;
 
     let client = HFClient::new()?;
@@ -54,15 +53,9 @@ pub(crate) async fn process_voices() -> Result<(), Box<dyn Error>> {
     let cache_dir = resolve_manifest_path(VOICES_DIR, "");
     let collection_path = cache_dir.join(COLLECTION_FILE);
 
-    if fs::try_exists(&collection_path).await? {
-        println!(
-            "Using cached voice collection: {}",
-            collection_path.display()
-        );
-    } else {
+    if !fs::try_exists(&collection_path).await? {
         let repo_path = download_kokoro_voices().await?;
         let source_dir = repo_path.join(REPO_DIR);
-
         let mut directory = fs::read_dir(&source_dir).await?;
         let mut sources = Vec::new();
 
@@ -80,11 +73,11 @@ pub(crate) async fn process_voices() -> Result<(), Box<dyn Error>> {
                 continue;
             }
 
-            let Some(name) = path.file_stem().and_then(|name| name.to_str()) else {
+            let Some(id) = path.file_stem().and_then(|name| name.to_str()) else {
                 continue;
             };
 
-            if voice_accent(name).is_some() {
+            if voice_metadata(id).is_some() {
                 sources.push(path);
             }
         }
@@ -115,47 +108,31 @@ pub(crate) async fn process_voices() -> Result<(), Box<dyn Error>> {
         }
 
         let mut voices = Vec::new();
-        let mut first_error = None;
 
         while let Some(result) = tasks.join_next().await {
-            match result {
-                Ok(Ok(voice)) => voices.push(voice),
-                Ok(Err(error)) => {
-                    if first_error.is_none() {
-                        first_error = Some(error);
-                    }
-                }
-                Err(error) => {
-                    if first_error.is_none() {
-                        first_error = Some(io::Error::other(error));
-                    }
-                }
-            }
+            voices.push(result??);
         }
 
-        if let Some(error) = first_error {
-            return Err(Box::new(error));
-        }
-
-        voices.sort_unstable_by(|a, b| a.name.cmp(&b.name));
+        voices.sort_unstable_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| (a.accent as u8).cmp(&(b.accent as u8)))
+                .then_with(|| (a.gender as u8).cmp(&(b.gender as u8)))
+        });
 
         let collection = VoiceCollection {
             format_version: FORMAT_VERSION,
             voices,
         };
 
-        let serialized = postcard::to_allocvec(&collection).map_err(io::Error::other)?;
-
+        let serialized = postcard::to_allocvec(&collection)?;
         let compressed = zstd::bulk::compress(&serialized, ZSTD_LEVEL)?;
 
         fs::create_dir_all(&cache_dir).await?;
 
         let temporary = collection_path.with_extension("data.tmp");
-
         fs::write(&temporary, compressed).await?;
         fs::rename(&temporary, &collection_path).await?;
-
-        println!("Created voice collection: {}", collection_path.display());
     }
 
     let out_dir = PathBuf::from(
@@ -177,71 +154,102 @@ pub(crate) async fn process_voices() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn voice_accent(name: &str) -> Option<VoiceAccent> {
-    if name.starts_with("af_") || name.starts_with("am_") {
-        Some(VoiceAccent::EnglishAmerican)
-    } else if name.starts_with("bf_") || name.starts_with("bm_") {
-        Some(VoiceAccent::EnglishBritish)
-    } else {
-        None
-    }
+fn voice_metadata(id: &str) -> Option<(VoiceAccent, VoiceGender)> {
+    let prefix = id.get(..3)?;
+
+    let metadata = match prefix {
+        "af_" => (VoiceAccent::EnglishAmerican, VoiceGender::Female),
+        "am_" => (VoiceAccent::EnglishAmerican, VoiceGender::Male),
+        "bf_" => (VoiceAccent::EnglishBritish, VoiceGender::Female),
+        "bm_" => (VoiceAccent::EnglishBritish, VoiceGender::Male),
+        _ => return None,
+    };
+
+    Some(metadata)
+}
+
+fn format_voice_name(id: &str) -> String {
+    id.get(3..).unwrap_or(id).to_title_case()
 }
 
 fn convert_voice(path: &Path) -> io::Result<VoiceEntry> {
-    let reader = PytorchReader::new(path).map_err(io::Error::other)?;
+    let file = File::open(path)?;
+    let mut archive = ZipArchive::new(file).map_err(io::Error::other)?;
 
-    if reader.len() != 1 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("expected one tensor in {}", path.display()),
-        ));
-    }
+    let prefix = archive
+        .file_names()
+        .map(|name| name.map_err(io::Error::other))
+        .collect::<io::Result<Vec<_>>>()?
+        .iter()
+        .find_map(|name| {
+            let name = name.as_ref();
 
-    let tensor = reader
-        .tensors()
-        .values()
-        .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing voice tensor"))?;
+            if name == "data.pkl" {
+                Some(String::new())
+            } else {
+                name.strip_suffix("/data.pkl").map(str::to_owned)
+            }
+        })
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing PyTorch data.pkl"))?;
 
-    if tensor.dtype() != DType::F32 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("expected f32 tensor in {}", path.display()),
-        ));
-    }
-
-    let frames = match tensor.shape() {
-        [frames, 1, STYLE_WIDTH] | [frames, STYLE_WIDTH] => *frames,
-
-        shape => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("invalid voice shape: {shape:?}"),
-            ));
+    let member = |name: &str| {
+        if prefix.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{prefix}/{name}")
         }
     };
 
-    if frames == 0 || frames > MAX_FRAMES {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("invalid frame count: {frames}"),
-        ));
-    }
+    let byte_order = match archive.by_name(&member("byteorder")) {
+        Ok(mut file) => {
+            let mut value = String::new();
+            file.read_to_string(&mut value)?;
+            value
+        }
+        Err(_) => "little".to_owned(),
+    };
 
-    let bytes = tensor.read().map_err(io::Error::other)?;
-    let expected = frames * STYLE_WIDTH * size_of::<f32>();
+    let storage_name = member("data/0");
+    let mut bytes = Vec::new();
 
-    if bytes.len() != expected {
+    archive
+        .by_name(&storage_name)
+        .map_err(io::Error::other)?
+        .read_to_end(&mut bytes)?;
+
+    let frame_bytes = STYLE_WIDTH * size_of::<f32>();
+
+    if bytes.is_empty() || bytes.len() % frame_bytes != 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "invalid voice tensor byte length",
         ));
     }
 
+    let frames = bytes.len() / frame_bytes;
+
+    if frames == 0 || frames > MAX_FRAMES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid voice frame count: {frames}"),
+        ));
+    }
+
     let mut styles = Vec::with_capacity(frames * STYLE_WIDTH);
 
     for chunk in bytes.chunks_exact(4) {
-        let value = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        let raw: [u8; 4] = chunk.try_into().map_err(io::Error::other)?;
+
+        let value = match byte_order.as_str() {
+            "little" => f32::from_le_bytes(raw),
+            "big" => f32::from_be_bytes(raw),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "unsupported PyTorch byte order",
+                ));
+            }
+        };
 
         if !value.is_finite() {
             return Err(io::Error::new(
@@ -253,18 +261,18 @@ fn convert_voice(path: &Path) -> io::Result<VoiceEntry> {
         styles.push(value);
     }
 
-    let name = path
+    let id = path
         .file_stem()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid voice name"))?
-        .to_owned();
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid voice filename"))?;
 
-    let accent = voice_accent(&name)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "unsupported voice accent"))?;
+    let (accent, gender) = voice_metadata(id)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "unsupported voice"))?;
 
     Ok(VoiceEntry {
-        name,
+        name: format_voice_name(id),
         accent,
+        gender,
         frames: frames as u16,
         styles,
     })

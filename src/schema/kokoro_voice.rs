@@ -17,7 +17,7 @@ pub enum VoiceGender {
     Male = 1,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct VoiceEntry {
     pub name: String,
     pub accent: VoiceAccent,
@@ -26,8 +26,35 @@ pub struct VoiceEntry {
     pub styles: Vec<f32>,
 }
 
+impl VoiceEntry {
+    pub fn styles_for_tokens(&self, token_count: usize) -> Option<&[f32]> {
+        if token_count == 0 || token_count > usize::from(self.frames) {
+            return None;
+        }
+
+        let end = token_count.checked_mul(STYLE_WIDTH)?;
+
+        self.styles.get(..end)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct VoiceCollection {
     pub format_version: u16,
     pub voices: Vec<VoiceEntry>,
+}
+
+impl VoiceCollection {
+    pub fn find(
+        &self,
+        name: &str,
+        accent: VoiceAccent,
+        gender: VoiceGender,
+    ) -> Option<&VoiceEntry> {
+        self.voices.iter().find(|voice| {
+            voice.name.eq_ignore_ascii_case(name)
+                && voice.accent == accent
+                && voice.gender == gender
+        })
+    }
 }
