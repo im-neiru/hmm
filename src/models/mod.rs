@@ -1,6 +1,7 @@
 use std::{env, io, path::PathBuf};
 
 pub(crate) mod kokoro;
+pub(crate) mod voice_enumerator;
 
 fn resolve_data_path(name: &str) -> Result<PathBuf, io::Error> {
     let exe_path = env::current_exe()?;
