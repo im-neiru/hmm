@@ -43,7 +43,7 @@ async fn download_kokoro_model() -> HFResult<PathBuf> {
     Ok(target_path)
 }
 
-pub(super) async fn process_model() -> Result<(), Box<dyn Error>> {
+pub(crate) async fn process_model() -> Result<(), Box<dyn Error>> {
     let input_path = download_kokoro_model().await?;
     let out_dir = resolve_manifest_path(MODEL_OUT_DIR, MODEL_FILE);
 
