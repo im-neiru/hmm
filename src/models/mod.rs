@@ -11,7 +11,5 @@ fn resolve_data_path(name: &str) -> Result<PathBuf, io::Error> {
         "Failed to get parent directory of executable",
     ))?;
 
-    let data_dir = parent_dir.join("data");
-
-    Ok(data_dir)
+    Ok(parent_dir.join("data").join(name))
 }
