@@ -2,7 +2,7 @@ use std::{convert::TryFrom, fs::File, io::Write, path::Path};
 
 use tokio::runtime::Builder;
 
-use hmm::{Audio, Inference, KokoroOptions, Options, VoiceEnumerator};
+use hmm::{Audio, Inference, KokoroOptions, Options, VoiceEnumerator, select_device};
 
 fn main() {
     let rt = Builder::new_multi_thread()
@@ -23,7 +23,9 @@ async fn run() {
     let entry = voices.find("kokoro", "af_heart").unwrap();
     let voice = voices.load(entry).await.unwrap();
 
-    let inference = Inference::new().await.unwrap();
+    let device = select_device().unwrap();
+
+    let inference = Inference::new(device).await.unwrap();
 
     let audio = inference
         .synthesize(

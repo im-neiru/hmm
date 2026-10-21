@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use burn::prelude::*;
+
 use crate::{
     KokoroOptions,
     errors::InferenceError,
@@ -55,9 +57,9 @@ pub struct Inference {
 }
 
 impl Inference {
-    pub async fn new() -> Result<Self, InferenceError> {
+    pub async fn new(device: Device) -> Result<Self, InferenceError> {
         let voices = VoiceEnumerator::open().await?;
-        let model = Kokoro::load().await?;
+        let model = Kokoro::load(device).await?;
 
         Ok(Self {
             model: Arc::new(Model::Kokoro(model)),
@@ -82,11 +84,10 @@ impl Inference {
         let model = Arc::clone(&self.model);
         let text = text.into();
 
-        tokio::task::spawn_blocking(move || match (&*model, options) {
+        match (&*model, options) {
             (Model::Kokoro(model), Options::Kokoro(options)) => {
                 model.synthesize(&text, &voice, &options)
             }
-        })
-        .await?
+        }
     }
 }

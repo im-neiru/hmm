@@ -121,10 +121,8 @@ pub struct Kokoro {
 }
 
 impl Kokoro {
-    pub async fn load() -> Result<Self, InferenceError> {
+    pub async fn load(device: Device) -> Result<Self, InferenceError> {
         let (model, device, phonemizer, vocab) = task::spawn_blocking(|| {
-            let device = Device::default();
-
             let model: Model = Model::from_file(resolve_data_path("kokoro_82m_v1.bpk")?, &device);
 
             let config: Config = serde_json::from_str(CONFIG_JSON)?;
@@ -216,6 +214,8 @@ impl Kokoro {
         voice: &Voice,
         speed: f32,
     ) -> Result<Vec<f32>, InferenceError> {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
         let phoneme_count = phonemes.chars().count();
 
         if phoneme_count == 0 {
@@ -252,21 +252,27 @@ impl Kokoro {
 
         let speed = Tensor::<1>::from_floats([speed].as_slice(), &self.device);
 
-        let audio: Tensor<2> = self.model.forward(tokens, style, speed);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let audio: Tensor<2> = self.model.forward(tokens, style, speed);
+            let [batch, sample_count] = audio.dims();
 
-        let [batch, sample_count] = audio.dims();
+            if batch != 1 {
+                return Err(InferenceError::InvalidAudioShape(batch));
+            }
 
-        if batch != 1 {
-            return Err(InferenceError::InvalidAudioShape(batch));
+            audio
+                .reshape([sample_count])
+                .to_data()
+                .try_into_vec::<f32>()
+                .map_err(|e| InferenceError::AudioData(format!("{e:?}")))
+        }));
+
+        match result {
+            Ok(r) => r,
+            Err(_) => Err(InferenceError::AudioData(
+                "GPU device lost during forward; model must be reloaded".into(),
+            )),
         }
-
-        let samples: Vec<f32> = audio
-            .reshape([sample_count])
-            .to_data()
-            .try_to_vec()
-            .map_err(|error| InferenceError::AudioData(error.to_string()))?;
-
-        Ok(samples)
     }
 }
 
