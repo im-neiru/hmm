@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
+    KokoroOptions,
     errors::InferenceError,
     models::{
-        kokoro::{Kokoro, Options as KokoroOptions},
+        kokoro::Kokoro,
         voice_enumerator::{Voice, VoiceEnumerator},
     },
 };
@@ -29,7 +30,7 @@ impl Audio {
     }
 }
 
-pub trait InferenceModel: Send + Sync + 'static {
+pub(crate) trait InferenceModel: Send + Sync + 'static {
     type Options: Send + 'static;
 
     fn synthesize(
