@@ -271,20 +271,20 @@ impl Kokoro {
 }
 
 impl InferenceModel for Kokoro {
-    type Voice = InferenceVoice;
     type Options = Options;
 
     fn synthesize(
         &self,
         text: &str,
-        voice: &Self::Voice,
+        voice: &InferenceVoice,
         options: &Self::Options,
     ) -> Result<Audio, InferenceError> {
+        let voice = voice.as_kokoro();
+
         if !(0.25..=4.0).contains(&options.speed) {
             return Err(InferenceError::InvalidSpeed);
         }
 
-        let voice = voice.as_kokoro();
         let chunks = self.phoneme_chunks(text)?;
         let mut samples = Vec::new();
 

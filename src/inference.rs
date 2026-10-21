@@ -1,6 +1,12 @@
 use std::sync::Arc;
 
-use crate::errors::InferenceError;
+use crate::{
+    errors::InferenceError,
+    models::{
+        kokoro::{Kokoro, Options as KokoroOptions},
+        voice_enumerator::{Voice, VoiceEnumerator},
+    },
+};
 
 #[derive(Debug)]
 pub struct Audio {
@@ -24,37 +30,62 @@ impl Audio {
 }
 
 pub trait InferenceModel: Send + Sync + 'static {
-    type Voice: Send + Sync + 'static;
     type Options: Send + 'static;
 
     fn synthesize(
         &self,
         text: &str,
-        voice: &Self::Voice,
+        voice: &Voice,
         options: &Self::Options,
     ) -> Result<Audio, InferenceError>;
 }
 
-pub struct Inference<M: InferenceModel> {
-    model: Arc<M>,
+pub enum Model {
+    Kokoro(Kokoro),
 }
 
-impl<M: InferenceModel> Inference<M> {
-    pub fn new(model: M) -> Self {
-        Self {
-            model: Arc::new(model),
-        }
+pub enum Options {
+    Kokoro(KokoroOptions),
+}
+
+pub struct Inference {
+    model: Arc<Model>,
+    voices: Arc<VoiceEnumerator>,
+}
+
+impl Inference {
+    pub async fn new() -> Result<Self, InferenceError> {
+        let voices = VoiceEnumerator::open().await?;
+        let model = Kokoro::load().await?;
+
+        Ok(Self {
+            model: Arc::new(Model::Kokoro(model)),
+            voices: Arc::new(voices),
+        })
+    }
+
+    pub fn voices(&self) -> &VoiceEnumerator {
+        &self.voices
+    }
+
+    pub async fn load_voice(&self, model: &str, id: &str) -> Result<Voice, InferenceError> {
+        self.voices.load_by_id(model, id).await
     }
 
     pub async fn synthesize(
         &self,
         text: impl Into<String>,
-        voice: Arc<M::Voice>,
-        options: M::Options,
+        voice: Voice,
+        options: Options,
     ) -> Result<Audio, InferenceError> {
         let model = Arc::clone(&self.model);
         let text = text.into();
 
-        tokio::task::spawn_blocking(move || model.synthesize(&text, &voice, &options)).await?
+        tokio::task::spawn_blocking(move || match (&*model, options) {
+            (Model::Kokoro(model), Options::Kokoro(options)) => {
+                model.synthesize(&text, &voice, &options)
+            }
+        })
+        .await?
     }
 }
