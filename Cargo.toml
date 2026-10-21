@@ -50,6 +50,7 @@ burn = { version = "0.22.1", default-features = false, features = [
 
 [build-dependencies]
 burn-onnx = "0.22.0"
+hf-hub = "1.0.0"
 
 [build]
 jobs = 6
