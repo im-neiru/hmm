@@ -3229,6 +3229,7 @@ dependencies = [
  "loqui-g2p",
  "miette",
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
