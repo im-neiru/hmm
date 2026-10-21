@@ -64,6 +64,15 @@ burn = { version = "0.22.1", default-features = false, features = [
 # build tools
 burn-onnx = "0.22.0"
 hf-hub = "1.0.0"
+tokio = { version = "1.54.0", default-features = false, features = [
+    "fs",
+    "io-std",
+    "io-util",
+    "parking_lot",
+    "rt",
+    "rt-multi-thread",
+    "sync",
+] }
 
 [build]
 jobs = 6
