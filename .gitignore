@@ -1,3 +1,4 @@
 /target
 /models
 /voices
+/.cargo/config.toml
