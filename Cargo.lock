@@ -3743,6 +3743,7 @@ dependencies = [
  "burn-store",
  "half",
  "hashbrown 0.17.1",
+ "heck",
  "hf-hub",
  "loqui-g2p",
  "miette",
