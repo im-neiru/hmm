@@ -849,6 +849,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4e7494d1142d945c9f1bd88b9aa68e4af7b190482e8cff47011d338057d857b"
 dependencies = [
  "burn-core",
+ "burn-cubecl",
  "burn-fusion",
  "burn-std",
  "num-traits",
@@ -953,6 +954,7 @@ checksum = "3afcc7d0f8654ccf9529c9e93f21383b8828d4c784c0429966d2026698f72451"
 dependencies = [
  "burn-autodiff",
  "burn-core",
+ "burn-cubecl",
  "burn-flex",
  "burn-fusion",
  "burn-std",
@@ -1042,8 +1044,10 @@ dependencies = [
  "aligned-vec",
  "bon",
  "burn-core",
+ "burn-cubecl",
  "burn-std",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "image",
  "macerator",
@@ -1122,6 +1126,26 @@ checksum = "225bff33b2141874fe80d71e07d6eec4f85c5c216453dd96388240f96e1acc14"
 dependencies = [
  "cc",
  "pkg-config",
+]
+
+[[package]]
+name = "c2rust-bitfields"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46dc7d2bffa0d0b3d47eb2dc69973466858281446c2ac9f6d8a10e92ab1017df"
+dependencies = [
+ "c2rust-bitfields-derive",
+]
+
+[[package]]
+name = "c2rust-bitfields-derive"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebe1117afa5937ce280034e31fa1e84ed1824a252f75380327eed438535333f8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -1958,6 +1982,7 @@ version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b2547c41cf892703b8378d005daf35aa588610e110b5a71a1296120bb2d48aa"
 dependencies = [
+ "ash",
  "bytemuck",
  "cfg-if",
  "cfg_aliases",
@@ -1976,10 +2001,13 @@ dependencies = [
  "hashbrown 0.17.1",
  "itertools 0.15.0",
  "log",
+ "objc2",
+ "objc2-foundation",
  "objc2-metal",
  "pliron",
  "sanitize-filename",
  "thiserror 2.0.21",
+ "tracel-ash",
  "wasm-bindgen-futures",
  "wgpu",
 ]
@@ -2004,6 +2032,7 @@ dependencies = [
  "cubecl",
  "cubek-attention",
  "cubek-convolution",
+ "cubek-fft",
  "cubek-interpolate",
  "cubek-matmul",
  "cubek-pool",
@@ -2043,6 +2072,15 @@ dependencies = [
  "cubek-tile",
  "half",
  "serde",
+]
+
+[[package]]
+name = "cubek-fft"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48451902f1d21d3eb88cadc17a8a7aeb3b582f17484a68e650f44efe74688b73"
+dependencies = [
+ "cubecl",
 ]
 
 [[package]]
@@ -3157,6 +3195,7 @@ dependencies = [
 name = "hmm"
 version = "0.1.0"
 dependencies = [
+ "burn",
  "burn-onnx",
 ]
 
@@ -5675,6 +5714,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
 dependencies = [
  "proc-macro2",
+ "quote",
  "unicode-ident",
 ]
 
@@ -5987,6 +6027,16 @@ dependencies = [
  "serde_json",
  "ureq 2.12.1",
  "zip",
+]
+
+[[package]]
+name = "tracel-ash"
+version = "0.39.5+sdk1.4.357"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9802d90b2e66f00a395a3acf337ddd49dd1e90cb3287fc31a4148f875d7be7c5"
+dependencies = [
+ "ash",
+ "c2rust-bitfields",
 ]
 
 [[package]]

@@ -3,7 +3,32 @@ name = "hmm"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["vulkan"]
+
+cuda = ["burn/cuda"]
+vulkan = ["burn/vulkan"]
+
 [dependencies]
+burn = { version = "0.22.1", features = ["signal"], default-features = false }
+
+[target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))'.dependencies]
+burn = { version = "0.22.1", default-features = false, features = [
+    "signal",
+    "vulkan",
+] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+burn = { version = "0.22.1", default-features = false, features = [
+    "signal",
+    "metal",
+] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+burn = { version = "0.22.1", default-features = false, features = [
+    "signal",
+    "webgpu",
+] }
 
 [build-dependencies]
 burn-onnx = "0.22.0"
