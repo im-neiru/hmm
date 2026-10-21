@@ -33,7 +33,6 @@ thiserror = "2.0.21"
 # machine learning
 burn = { version = "0.22.1", features = ["signal"], default-features = false }
 burn-store = "0.22.1"
-pytorch-reader = "0.22.1"
 
 # serialization
 serde = "1.0.229"
@@ -64,6 +63,7 @@ burn = { version = "0.22.1", default-features = false, features = [
 # build tools
 burn-onnx = "0.22.0"
 hf-hub = "1.0.0"
+pytorch-reader = "0.22.1"
 tokio = { version = "1.54.0", default-features = false, features = [
     "fs",
     "io-std",
