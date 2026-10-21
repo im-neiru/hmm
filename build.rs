@@ -14,5 +14,5 @@ fn main() {
 }
 
 async fn generate() {
-    join!(preprocess::process_models());
+    join!(preprocess::process_models(), preprocess::process_voices());
 }

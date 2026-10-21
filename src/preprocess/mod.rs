@@ -9,6 +9,10 @@ pub async fn process_models() {
     tokio::try_join!(kokoro::process_model()).unwrap();
 }
 
+pub async fn process_voices() {
+    tokio::try_join!(kokoro::process_voices()).unwrap();
+}
+
 const MODEL_OUT_DIR: &str = "src/models/base";
 const MODEL_DIR: &str = "models";
 
