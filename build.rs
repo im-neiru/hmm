@@ -1,4 +1,4 @@
-#[path = "src/preprocess/kokoro.rs"]
+#[path = "src/preprocess/kokoro/mod.rs"]
 mod kokoro;
 
 use burn_onnx::ModelGen;
@@ -11,8 +11,8 @@ struct ModelConfig {
 }
 
 const MODELS_TO_GENERATE: &[ModelConfig] = &[ModelConfig {
-    input_rel_path: "kokoro_82m_v1_fp16.onnx",
-    out_dir_rel_path: "kokoro_82m_v1_fp16",
+    input_rel_path: "kokoro_82m_v1.onnx",
+    out_dir_rel_path: "kokoro_82m_v1",
 }];
 
 fn main() {
