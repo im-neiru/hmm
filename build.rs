@@ -1,3 +1,6 @@
+#[path = "src/preprocess/kokoro.rs"]
+mod kokoro;
+
 use burn_onnx::ModelGen;
 use std::env;
 use std::path::{Path, PathBuf};
