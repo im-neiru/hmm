@@ -11,6 +11,7 @@ use tokio::task;
 use crate::{
     errors::InferenceError,
     inference::{Audio, InferenceModel},
+    models::resolve_data_path,
     utils::FxHashMap,
 };
 
@@ -93,8 +94,8 @@ impl Kokoro {
     pub async fn load() -> Result<Self, InferenceError> {
         let (model, device, phonemizer, vocab) = task::spawn_blocking(|| {
             let device = Device::default();
-            let model: Model =
-                Model::from_file("src/models/base/kokoro_82m_v1/kokoro_82m_v1.bpk", &device);
+
+            let model: Model = Model::from_file(resolve_data_path("kokoro_82m_v1.bpk")?, &device);
 
             let config: Config = serde_json::from_str(CONFIG_JSON)?;
 
