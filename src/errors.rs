@@ -80,4 +80,11 @@ pub enum InferenceError {
         help("the blocking inference task panicked or was cancelled")
     )]
     Task(#[from] tokio::task::JoinError),
+
+    #[error("model returned an invalid audio batch size: {0}")]
+    #[diagnostic(
+        code(inference::audio_shape),
+        help("this API expects a single-utterance result with batch size 1")
+    )]
+    InvalidAudioShape(usize),
 }
