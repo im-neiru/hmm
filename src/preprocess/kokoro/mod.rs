@@ -53,7 +53,7 @@ pub(super) async fn process_model() -> Result<(), Box<dyn Error>> {
     task::spawn_blocking(move || {
         ModelGen::new()
             .input(&input)
-            .out_dir(&output)
+            .out_dir(output.trim_end_matches(".onnx"))
             .run_from_script();
     })
     .await?;
