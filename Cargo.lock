@@ -3227,6 +3227,9 @@ dependencies = [
  "burn-store",
  "half",
  "loqui-g2p",
+ "miette",
+ "serde",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
