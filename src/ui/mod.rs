@@ -1,32 +1,3 @@
-use core::{
-    any::type_name,
-    error::Error,
-    fmt,
-    future::Future,
-    ops::Deref,
-    sync::atomic::{AtomicBool, Ordering},
-};
-use std::{
-    collections::VecDeque,
-    path::PathBuf,
-    sync::{Arc, OnceLock},
-    time::{Duration, Instant},
-};
-
-use burn::tensor::Device;
-use iced::{
-    Element, Fill, Font, Subscription, Task, Theme,
-    alignment::{Horizontal, Vertical},
-    font::{self, Weight},
-    time,
-    widget::{button, column, container, row, stack, text, text_editor},
-};
-use hmm::{Inference, VoiceAccent, VoiceEntry, VoiceEnumerator, VoiceGender};
-use tokio::{
-    runtime::{Builder, Runtime},
-    task::JoinError,
-};
-
 mod audio;
 mod compose;
 mod done;
@@ -37,6 +8,36 @@ mod tabs;
 mod theme;
 mod toast;
 mod voices;
+
+use core::{
+    any::type_name,
+    error::Error,
+    fmt,
+    future::Future,
+    ops::Deref,
+    sync::atomic::{AtomicBool, Ordering},
+};
+use std::{
+    borrow::Cow,
+    collections::VecDeque,
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+    time::{Duration, Instant},
+};
+
+use burn::tensor::Device;
+use hmm::{Inference, VoiceAccent, VoiceEntry, VoiceEnumerator, VoiceGender};
+use iced::{
+    Element, Fill, Font, Subscription, Task, Theme,
+    alignment::{Horizontal, Vertical},
+    font::{self, Weight},
+    time,
+    widget::{button, column, container, row, stack, text, text_editor},
+};
+use tokio::{
+    runtime::{Builder, Runtime},
+    task::JoinError,
+};
 
 const TITLE: &str = "HMM";
 const TITLE_SIZE: f32 = 30.0;
@@ -50,16 +51,17 @@ const DOT_COUNT: usize = 3;
 const DOT_PERIOD: f32 = 1.2;
 const DOT_STAGGER: f32 = 0.14;
 const DOT_LIFT: f32 = 8.0;
-const ACCENTS: [VoiceAccent; 2] = [
-    VoiceAccent::EnglishAmerican,
-    VoiceAccent::EnglishBritish,
-];
+const ACCENTS: [VoiceAccent; 2] = [VoiceAccent::EnglishAmerican, VoiceAccent::EnglishBritish];
 const GENDERS: [VoiceGender; 2] = [VoiceGender::Female, VoiceGender::Male];
+
+const FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/afacad-flux.ttf");
 
 pub fn run() -> iced::Result {
     iced::application(App::new, App::update, App::view)
         .title(TITLE)
         .theme(App::theme)
+        .font(Cow::Borrowed(FONT_BYTES))
+        .default_font(Font::with_name("Afacad Flux"))
         .subscription(App::subscription)
         .window_size((1180.0, 760.0))
         .run()
@@ -324,9 +326,8 @@ impl App {
         };
 
         let icon_fonts = Task::batch(iconflow::fonts().iter().map(|asset| {
-            font::load(asset.bytes).map(|result| {
-                Message::IconFontLoaded(result.map_err(|never| match never {}))
-            })
+            font::load(asset.bytes)
+                .map(|result| Message::IconFontLoaded(result.map_err(|never| match never {})))
         }));
         let task = Task::batch([app.load_backend(), app.load_done_files(), icon_fonts]);
 
@@ -351,12 +352,8 @@ impl App {
                 .await
                 .map(Shared::new)
                 .map_err(|error| {
-                    UiError::from_error(
-                        Scope::Voices,
-                        "Couldn't open the voice library",
-                        &error,
-                    )
-                    .with_hint("Check the data folder, then press Reload.")
+                    UiError::from_error(Scope::Voices, "Couldn't open the voice library", &error)
+                        .with_hint("Check the data folder, then press Reload.")
                 })
         });
 
@@ -365,12 +362,8 @@ impl App {
                 .await
                 .map(Shared::new)
                 .map_err(|error| {
-                    UiError::from_error(
-                        Scope::Engine,
-                        "Couldn't load the speech model",
-                        &error,
-                    )
-                    .with_hint("Press Reload to try again.")
+                    UiError::from_error(Scope::Engine, "Couldn't load the speech model", &error)
+                        .with_hint("Press Reload to try again.")
                 })
         });
 
@@ -396,7 +389,10 @@ impl App {
             Message::Tick(now) => self.now = now,
             Message::VoicesLoaded(Ok(enumerator)) => {
                 let entries = enumerator.iter().cloned().collect();
-                self.voices = Load::Ready(VoiceBank { enumerator, entries });
+                self.voices = Load::Ready(VoiceBank {
+                    enumerator,
+                    entries,
+                });
             }
             Message::VoicesLoaded(Err(error)) => {
                 self.voices = Load::Failed;
@@ -456,7 +452,11 @@ impl App {
                 }
             }
             Message::PlaybackFinished { id, result } => {
-                if self.playback.as_ref().is_some_and(|playback| playback.id == id) {
+                if self
+                    .playback
+                    .as_ref()
+                    .is_some_and(|playback| playback.id == id)
+                {
                     self.playback = None;
                 }
 
@@ -488,7 +488,10 @@ impl App {
             }
             Message::DeleteDone(id) => {
                 if self.busy_files.contains(&id)
-                    || self.playback.as_ref().is_some_and(|playback| playback.id == id)
+                    || self
+                        .playback
+                        .as_ref()
+                        .is_some_and(|playback| playback.id == id)
                 {
                     return Task::none();
                 }
@@ -501,16 +504,13 @@ impl App {
 
                 let work = on_worker(Scope::Output, async move {
                     audio::delete_file(&path).map_err(|error| {
-                        UiError::from_error(
-                            Scope::Output,
-                            "Couldn't delete the audio file",
-                            &error,
-                        )
+                        UiError::from_error(Scope::Output, "Couldn't delete the audio file", &error)
                     })
                 });
 
-                return Task::perform(work, move |result| {
-                    Message::DeleteDoneFinished { id, result }
+                return Task::perform(work, move |result| Message::DeleteDoneFinished {
+                    id,
+                    result,
                 });
             }
             Message::DeleteDoneFinished { id, result } => {
@@ -530,11 +530,7 @@ impl App {
                             id,
                             path: done.path.clone(),
                         });
-                        let name = done
-                            .path
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy();
+                        let name = done.path.file_name().unwrap_or_default().to_string_lossy();
                         self.status = Some(format!(
                             "Finished {name} · {:.1}s audio · {:.1}s to generate",
                             done.seconds,
@@ -776,10 +772,8 @@ impl App {
                         .padding([6, 13])
                         .style(theme::secondary_button)
                         .on_press_maybe(
-                            (self.active.is_none()
-                                && self.queue.is_empty()
-                                && !self.is_loading())
-                            .then_some(Message::Reload),
+                            (self.active.is_none() && self.queue.is_empty() && !self.is_loading())
+                                .then_some(Message::Reload),
                         ),
                 ]
                 .spacing(12)
@@ -798,10 +792,7 @@ impl App {
             Page::Queue => queue::page(self),
             Page::Done => done::page(self),
         };
-        let workspace = column![tabs, content]
-            .spacing(12)
-            .width(Fill)
-            .height(Fill);
+        let workspace = column![tabs, content].spacing(12).width(Fill).height(Fill);
         let body = row![voices::panel(self), workspace]
             .spacing(16)
             .height(Fill);
