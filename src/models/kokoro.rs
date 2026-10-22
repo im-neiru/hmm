@@ -1,4 +1,5 @@
 #[path = "base/kokoro_82m_v1/kokoro_82m_v1.rs"]
+#[allow(unused)]
 mod kokoro_82m_v1;
 
 use burn::prelude::*;
