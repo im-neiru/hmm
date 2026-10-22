@@ -33,6 +33,7 @@ use iced::{
     font::{self, Weight},
     time,
     widget::{button, column, container, row, stack, text, text_editor},
+    window,
 };
 use tokio::{
     runtime::{Builder, Runtime},
@@ -55,6 +56,18 @@ const ACCENTS: [VoiceAccent; 2] = [VoiceAccent::EnglishAmerican, VoiceAccent::En
 const GENDERS: [VoiceGender; 2] = [VoiceGender::Female, VoiceGender::Male];
 
 const FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/afacad-flux.ttf");
+const ICON_BYTES: &[u8] = include_bytes!("../../assets/images/icon.png");
+
+fn app_icon() -> window::icon::Icon {
+    let image = image::load_from_memory(ICON_BYTES)
+        .expect("invalid application icon")
+        .into_rgba8();
+
+    let (width, height) = image.dimensions();
+
+    window::icon::from_rgba(image.into_raw(), width, height)
+        .expect("invalid application icon dimensions")
+}
 
 pub fn run() -> iced::Result {
     iced::application(App::new, App::update, App::view)
@@ -62,6 +75,10 @@ pub fn run() -> iced::Result {
         .theme(App::theme)
         .font(Cow::Borrowed(FONT_BYTES))
         .default_font(Font::with_name("Afacad Flux"))
+        .window(window::Settings {
+            icon: Some(app_icon()),
+            ..window::Settings::default()
+        })
         .subscription(App::subscription)
         .window_size((1180.0, 760.0))
         .run()
