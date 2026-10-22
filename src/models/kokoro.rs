@@ -35,9 +35,9 @@ pub struct Voice {
 }
 
 impl Voice {
-    pub async fn load(bytes: &[u8]) -> Result<Self, InferenceError> {
-        Self::load_owned(bytes.to_vec()).await
-    }
+    // pub async fn load(bytes: &[u8]) -> Result<Self, InferenceError> {
+    //     Self::load_owned(bytes.to_vec()).await
+    // }
 
     pub(crate) async fn load_owned(bytes: Vec<u8>) -> Result<Self, InferenceError> {
         let styles = task::spawn_blocking(move || decode_styles(&bytes)).await??;
@@ -49,9 +49,9 @@ impl Voice {
         &self.styles
     }
 
-    pub(crate) fn frame_count(&self) -> usize {
-        self.styles.len() / STYLE_WIDTH
-    }
+    // pub(crate) fn frame_count(&self) -> usize {
+    //     self.styles.len() / STYLE_WIDTH
+    // }
 
     fn style(&self, phoneme_count: usize) -> Result<&[f32], InferenceError> {
         let index = phoneme_count
