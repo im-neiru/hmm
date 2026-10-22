@@ -780,13 +780,13 @@ impl App {
                 text(TITLE).size(TITLE_SIZE),
                 compose::thinking_dots(elapsed),
             ]
+            .spacing(12)
             .align_y(Vertical::Center),
             container(
                 row![
                     text(engine_status).size(13).style(theme::muted),
-                    button(text("Reload").size(13))
-                        .height(36.0)
-                        .padding([6, 13])
+                    button(text("Reload").size(14))
+                        .padding([8, 16])
                         .style(theme::secondary_button)
                         .on_press_maybe(
                             (self.active.is_none() && self.queue.is_empty() && !self.is_loading())
