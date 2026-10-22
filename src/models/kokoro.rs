@@ -1,8 +1,6 @@
 #[path = "base/kokoro_82m_v1/kokoro_82m_v1.rs"]
 mod kokoro_82m_v1;
 
-use std::path::{Path, PathBuf};
-
 use burn::prelude::*;
 use loqui_g2p::{Dialect, G2p, OovFallback};
 use serde::Deserialize;
@@ -11,6 +9,7 @@ use tokio::task;
 use crate::{
     errors::InferenceError,
     inference::{Audio, InferenceModel},
+    models::{resolve_data_path, voice_enumerator::Voice as InferenceVoice},
     utils::FxHashMap,
 };
 
@@ -19,6 +18,7 @@ use kokoro_82m_v1::Model;
 const STYLE_WIDTH: usize = 256;
 const MAX_PHONEMES: usize = 510;
 const SAMPLE_RATE: u32 = 24_000;
+const MAX_VOICE_BYTES: usize = 64 * 1024 * 1024;
 
 const CONFIG_JSON: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/configs/kokoro.json"));
 
@@ -34,27 +34,22 @@ pub struct Voice {
 }
 
 impl Voice {
-    pub async fn load(path: impl AsRef<Path>) -> Result<Self, InferenceError> {
-        let path: PathBuf = path.as_ref().to_path_buf();
-        let bytes = tokio::fs::read(path).await?;
+    pub async fn load(bytes: &[u8]) -> Result<Self, InferenceError> {
+        Self::load_owned(bytes.to_vec()).await
+    }
 
-        task::spawn_blocking(move || {
-            let stride = STYLE_WIDTH * size_of::<f32>();
+    pub(crate) async fn load_owned(bytes: Vec<u8>) -> Result<Self, InferenceError> {
+        let styles = task::spawn_blocking(move || decode_styles(&bytes)).await??;
 
-            if bytes.is_empty() || bytes.len() % stride != 0 || bytes.len() / stride > MAX_PHONEMES
-            {
-                return Err(InferenceError::InvalidVoicePack);
-            }
+        Ok(Self { styles })
+    }
 
-            let mut styles = Vec::with_capacity(bytes.len() / 4);
+    pub fn styles(&self) -> &[f32] {
+        &self.styles
+    }
 
-            for chunk in bytes.chunks_exact(4) {
-                styles.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-            }
-
-            Ok(Self { styles })
-        })
-        .await?
+    pub(crate) fn frame_count(&self) -> usize {
+        self.styles.len() / STYLE_WIDTH
     }
 
     fn style(&self, phoneme_count: usize) -> Result<&[f32], InferenceError> {
@@ -62,13 +57,49 @@ impl Voice {
             .checked_sub(1)
             .ok_or(InferenceError::EmptyTokens)?;
 
-        let start = index * STYLE_WIDTH;
-        let end = start + STYLE_WIDTH;
+        let start = index
+            .checked_mul(STYLE_WIDTH)
+            .ok_or(InferenceError::MissingStyle(phoneme_count))?;
+
+        let end = start
+            .checked_add(STYLE_WIDTH)
+            .ok_or(InferenceError::MissingStyle(phoneme_count))?;
 
         self.styles
             .get(start..end)
             .ok_or(InferenceError::MissingStyle(phoneme_count))
     }
+}
+
+fn decode_styles(bytes: &[u8]) -> Result<Vec<f32>, InferenceError> {
+    let bytes = zstd::bulk::decompress(bytes, MAX_VOICE_BYTES)
+        .map_err(|_| InferenceError::InvalidVoicePack)?;
+
+    if bytes.is_empty() || bytes.len() % size_of::<f32>() != 0 {
+        return Err(InferenceError::InvalidVoicePack);
+    }
+
+    let mut styles = Vec::with_capacity(bytes.len() / size_of::<f32>());
+
+    for chunk in bytes.chunks_exact(size_of::<f32>()) {
+        let raw: [u8; 4] = chunk
+            .try_into()
+            .map_err(|_| InferenceError::InvalidVoicePack)?;
+
+        let value = f32::from_le_bytes(raw);
+
+        if !value.is_finite() {
+            return Err(InferenceError::InvalidVoicePack);
+        }
+
+        styles.push(value);
+    }
+
+    if styles.len() % STYLE_WIDTH != 0 {
+        return Err(InferenceError::InvalidVoicePack);
+    }
+
+    Ok(styles)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -90,11 +121,9 @@ pub struct Kokoro {
 }
 
 impl Kokoro {
-    pub async fn load() -> Result<Self, InferenceError> {
+    pub async fn load(device: Device) -> Result<Self, InferenceError> {
         let (model, device, phonemizer, vocab) = task::spawn_blocking(|| {
-            let device = Device::default();
-            let model: Model =
-                Model::from_file("src/models/base/kokoro_82m_v1/kokoro_82m_v1.bpk", &device);
+            let model: Model = Model::from_file(resolve_data_path("kokoro_82m_v1.bpk")?, &device);
 
             let config: Config = serde_json::from_str(CONFIG_JSON)?;
 
@@ -185,6 +214,8 @@ impl Kokoro {
         voice: &Voice,
         speed: f32,
     ) -> Result<Vec<f32>, InferenceError> {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
         let phoneme_count = phonemes.chars().count();
 
         if phoneme_count == 0 {
@@ -221,34 +252,41 @@ impl Kokoro {
 
         let speed = Tensor::<1>::from_floats([speed].as_slice(), &self.device);
 
-        let audio: Tensor<2> = self.model.forward(tokens, style, speed);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let audio: Tensor<2> = self.model.forward(tokens, style, speed);
+            let [batch, sample_count] = audio.dims();
 
-        let [batch, sample_count] = audio.dims();
+            if batch != 1 {
+                return Err(InferenceError::InvalidAudioShape(batch));
+            }
 
-        if batch != 1 {
-            return Err(InferenceError::InvalidAudioShape(batch));
+            audio
+                .reshape([sample_count])
+                .to_data()
+                .try_into_vec::<f32>()
+                .map_err(|e| InferenceError::AudioData(format!("{e:?}")))
+        }));
+
+        match result {
+            Ok(r) => r,
+            Err(_) => Err(InferenceError::AudioData(
+                "GPU device lost during forward; model must be reloaded".into(),
+            )),
         }
-
-        let samples: Vec<f32> = audio
-            .reshape([sample_count])
-            .to_data()
-            .try_to_vec()
-            .map_err(|error| InferenceError::AudioData(error.to_string()))?;
-
-        Ok(samples)
     }
 }
 
 impl InferenceModel for Kokoro {
-    type Voice = Voice;
     type Options = Options;
 
     fn synthesize(
         &self,
         text: &str,
-        voice: &Self::Voice,
+        voice: &InferenceVoice,
         options: &Self::Options,
     ) -> Result<Audio, InferenceError> {
+        let voice = voice.as_kokoro();
+
         if !(0.25..=4.0).contains(&options.speed) {
             return Err(InferenceError::InvalidSpeed);
         }

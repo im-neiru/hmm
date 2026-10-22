@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["vulkan"]
-
+default = []
 cuda = ["burn/cuda"]
-vulkan = ["burn/vulkan"]
+rocm = ["burn/rocm"]
 
 [dependencies]
 # async runtime
@@ -23,6 +22,7 @@ tokio = { version = "1.54.0", default-features = false, features = [
 
 # compression
 zstd = "0.14.3"
+zip = "9.0.5"
 
 # data structures & math
 half = "2.7"
@@ -32,6 +32,9 @@ rustc-hash = "2.1.3"
 # error handling
 miette = "7.6.0"
 thiserror = "2.0.21"
+
+# file mapping
+mmap-io = "1.1.0"
 
 # machine learning
 burn = { version = "0.22.1", features = ["signal"], default-features = false }
@@ -49,18 +52,24 @@ loqui-g2p = "0.4.0"
 burn = { version = "0.22.1", default-features = false, features = [
     "signal",
     "vulkan",
+    "wgpu",
+    "ndarray",
+    "flex",
 ] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 burn = { version = "0.22.1", default-features = false, features = [
     "signal",
     "metal",
+    "wgpu",
+    "flex",
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 burn = { version = "0.22.1", default-features = false, features = [
     "signal",
     "webgpu",
+    "wgpu",
 ] }
 
 [build-dependencies]
@@ -82,9 +91,6 @@ zstd = "0.14.3"
 serde = "1.0.229"
 zip = "9.0.5"
 heck = "0.5.0"
-
-[build]
-jobs = 6
 
 [profile.dev]
 opt-level = 0

@@ -88,3 +88,41 @@ pub enum InferenceError {
     )]
     InvalidAudioShape(usize),
 }
+
+#[derive(Debug, Error, Diagnostic)]
+pub enum DeviceSelectError {
+    #[error("unknown backend `{0}` in HMM_BACKEND")]
+    #[diagnostic(
+        code(device::unknown_backend),
+        help("valid values are: cuda, rocm, vulkan, metal")
+    )]
+    UnknownBackend(String),
+
+    #[error("backend `{0}` is not compiled into this build")]
+    #[diagnostic(
+        code(device::backend_not_compiled),
+        help(
+            "cuda and rocm need `--features cuda` / `--features rocm`; vulkan is for Windows, Linux and Android, metal for macOS and iOS"
+        )
+    )]
+    BackendNotCompiled(String),
+
+    #[error("no working compute device found{}", format_attempts(.attempts))]
+    #[diagnostic(
+        code(device::no_working_device),
+        help(
+            "update the GPU driver, check the attempts listed above, or force a different backend with HMM_BACKEND"
+        )
+    )]
+    NoWorkingDevice {
+        forced: Option<String>,
+        attempts: Vec<String>,
+    },
+}
+
+fn format_attempts(attempts: &[String]) -> String {
+    if attempts.is_empty() {
+        return "\n  (no devices were reported by any enabled backend)".into();
+    }
+    attempts.iter().map(|a| format!("\n  - {a}")).collect()
+}
