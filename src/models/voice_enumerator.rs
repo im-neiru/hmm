@@ -15,9 +15,10 @@ use crate::errors::InferenceError;
 use super::{kokoro, resolve_data_path};
 
 use lookup::{
-    FORMAT_VERSION, VOICES_ARCHIVE_FILE, VOICES_LOOKUP_FILE, VoiceDataFormat, VoiceEntry,
-    VoiceLookup, VoiceModel,
+    FORMAT_VERSION, VOICES_ARCHIVE_FILE, VOICES_LOOKUP_FILE, VoiceDataFormat, VoiceLookup,
 };
+
+pub use lookup::{VoiceAccent, VoiceEntry, VoiceGender, VoiceModel};
 
 pub struct VoiceEnumerator {
     lookup: VoiceLookup,

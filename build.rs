@@ -11,6 +11,13 @@ fn main() {
         .unwrap();
 
     rt.block_on(async { generate().await });
+
+    #[cfg(target_os = "windows")] // add icon for windows app
+    {
+        let mut res = winresource::WindowsResource::new();
+        res.set_icon("assets/images/icon.ico");
+        res.compile().unwrap();
+    }
 }
 
 async fn generate() {
