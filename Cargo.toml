@@ -51,6 +51,9 @@ loqui-g2p = "0.4.0"
 # ui
 iced = { version = "0.14.0", features = ["tokio"] }
 
+# file system
+dirs = "7.0.0"
+
 [target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))'.dependencies]
 burn = { version = "0.22.1", default-features = false, features = [
     "signal",
