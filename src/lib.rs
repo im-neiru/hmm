@@ -5,7 +5,9 @@ mod models;
 mod utils;
 
 pub use inference::*;
-pub use models::voice_enumerator::{Voice, VoiceEnumerator};
+pub use models::voice_enumerator::{
+    Voice, VoiceAccent, VoiceEntry, VoiceEnumerator, VoiceGender, VoiceModel,
+};
 
 // pub use device_selector::select_device;
 pub use models::kokoro::Options as KokoroOptions;
