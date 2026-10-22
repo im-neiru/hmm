@@ -2,7 +2,7 @@ use std::{convert::TryFrom, fs::File, io::Write, path::Path};
 
 use tokio::runtime::Builder;
 
-use hmm::{Audio, Inference, KokoroOptions, Options, VoiceEnumerator, select_device};
+use hmm::{Audio, Inference, KokoroOptions, Options, VoiceEnumerator};
 
 fn main() {
     let rt = Builder::new_multi_thread()
@@ -20,10 +20,11 @@ fn main() {
 async fn run() {
     let voices = VoiceEnumerator::open().await.unwrap();
 
-    let entry = voices.find("kokoro", "af_heart").unwrap();
+    let entry = voices.find("kokoro", "af_jessica").unwrap();
     let voice = voices.load(entry).await.unwrap();
 
-    let device = select_device().unwrap();
+
+    let device = burn::tensor::Device::flex();
 
     let inference = Inference::new(device).await.unwrap();
 
@@ -31,7 +32,7 @@ async fn run() {
         .synthesize(
             "Testing text to speech with Burn!",
             voice,
-            Options::Kokoro(KokoroOptions { speed: 1.0 }),
+            Options::Kokoro(KokoroOptions { speed: 1.0}),
         )
         .await
         .unwrap();

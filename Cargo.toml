@@ -54,7 +54,7 @@ burn = { version = "0.22.1", default-features = false, features = [
     "vulkan",
     "wgpu",
     "ndarray",
-    "cpu",
+    "flex",
 ] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
@@ -62,7 +62,7 @@ burn = { version = "0.22.1", default-features = false, features = [
     "signal",
     "metal",
     "wgpu",
-    "cpu",
+    "flex",
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
