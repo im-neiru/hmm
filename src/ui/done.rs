@@ -4,7 +4,7 @@ use iced::{
     widget::{button, column, container, row, scrollable, text},
 };
 
-use super::{App, DoneItem, Message, icons, theme};
+use super::{App, DoneItem, Message, Playback, icons, theme};
 
 pub(super) fn page(app: &App) -> Element<'_, Message> {
     let mut content = column![page_header(
@@ -20,10 +20,13 @@ pub(super) fn page(app: &App) -> Element<'_, Message> {
             "Finished WAV files appear here, with options to open their folder or delete them.",
         ));
     } else {
-        let items = app
-            .done
-            .iter()
-            .map(|item| done_card(item, app.busy_files.contains(&item.id)));
+        let items = app.done.iter().map(|item| {
+            done_card(
+                item,
+                app.busy_files.contains(&item.id),
+                app.playback.as_ref(),
+            )
+        });
 
         content = content.push(scrollable(column(items).spacing(9)).height(Fill));
     }
@@ -52,15 +55,41 @@ fn page_header<'a>(title: &'a str, subtitle: &'a str, count: usize) -> Element<'
     .into()
 }
 
-fn done_card(item: &DoneItem, deleting: bool) -> Element<'_, Message> {
+fn done_card<'a>(
+    item: &'a DoneItem,
+    deleting: bool,
+    playback: Option<&Playback>,
+) -> Element<'a, Message> {
     let name = item
         .path
         .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .into_owned();
+
     let path = item.path.to_string_lossy().into_owned();
+    let is_playing = playback.is_some_and(|current| current.id == item.id);
+    let playback_active = playback.is_some();
+    let is_stopping = playback.is_some_and(|current| current.id == item.id && current.stopping);
+
+    let play_text = if is_stopping {
+        "Stopping…"
+    } else if is_playing {
+        "Stop"
+    } else {
+        "Play"
+    };
+    let play_message = if is_playing {
+        (!is_stopping).then_some(Message::StopPlayback)
+    } else {
+        (!playback_active).then_some(Message::PlayDone(item.id))
+    };
     let delete_text = if deleting { "Deleting…" } else { "Delete" };
+    let file_status = if is_playing {
+        "WAV audio · playing"
+    } else {
+        "WAV audio · ready"
+    };
 
     container(
         row![
@@ -70,12 +99,18 @@ fn done_card(item: &DoneItem, deleting: bool) -> Element<'_, Message> {
             column![
                 text(name).size(14),
                 text(path).size(11).style(theme::muted),
-                text("WAV audio · ready").size(11).color(theme::GREEN),
+                text(file_status).size(11).color(theme::GREEN),
             ]
             .spacing(4)
             .width(Fill),
             column![
-                action_button("play", "▶", "Play later", theme::secondary_button),
+                action_button(
+                    if is_playing { "stop" } else { "play" },
+                    if is_playing { "■" } else { "▶" },
+                    play_text,
+                    theme::secondary_button,
+                    play_message,
+                ),
                 button(action_content("folder-open", "↗", "Open folder"))
                     .width(theme::ACTION_WIDTH)
                     .height(theme::ACTION_HEIGHT)
@@ -87,7 +122,9 @@ fn done_card(item: &DoneItem, deleting: bool) -> Element<'_, Message> {
                     .height(theme::ACTION_HEIGHT)
                     .padding([4, 8])
                     .style(theme::danger_button)
-                    .on_press_maybe((!deleting).then_some(Message::DeleteDone(item.id))),
+                    .on_press_maybe(
+                        (!deleting && !is_playing).then_some(Message::DeleteDone(item.id))
+                    ),
             ]
             .spacing(6),
         ]
@@ -105,12 +142,14 @@ fn action_button(
     fallback: &'static str,
     title: &'static str,
     style: fn(&Theme, button::Status) -> button::Style,
+    message: Option<Message>,
 ) -> Element<'static, Message> {
     button(action_content(icon_name, fallback, title))
         .width(theme::ACTION_WIDTH)
         .height(theme::ACTION_HEIGHT)
         .padding([4, 8])
         .style(style)
+        .on_press_maybe(message)
         .into()
 }
 
@@ -120,12 +159,9 @@ fn action_content(
     title: &'static str,
 ) -> Element<'static, Message> {
     container(
-        row![
-            icons::icon(icon_name, fallback, 15),
-            text(title).size(12),
-        ]
-        .spacing(6)
-        .align_y(Vertical::Center),
+        row![icons::icon(icon_name, fallback, 15), text(title).size(12),]
+            .spacing(6)
+            .align_y(Vertical::Center),
     )
     .width(Fill)
     .center(Fill)

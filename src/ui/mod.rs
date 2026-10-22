@@ -1,4 +1,11 @@
-use core::{any::type_name, error::Error, fmt, future::Future, ops::Deref};
+use core::{
+    any::type_name,
+    error::Error,
+    fmt,
+    future::Future,
+    ops::Deref,
+    sync::atomic::{AtomicBool, Ordering},
+};
 use std::{
     collections::VecDeque,
     path::PathBuf,
@@ -24,6 +31,7 @@ mod audio;
 mod compose;
 mod done;
 mod icons;
+mod playback;
 mod queue;
 mod tabs;
 mod theme;
@@ -117,6 +125,12 @@ enum Message {
     SetPage(Page),
     RemoveQueued(u64),
     OpenDoneFolder(u64),
+    PlayDone(u64),
+    StopPlayback,
+    PlaybackFinished {
+        id: u64,
+        result: Result<(), UiError>,
+    },
     OutputActionFinished(Result<(), UiError>),
     DeleteDone(u64),
     DeleteDoneFinished {
@@ -242,6 +256,12 @@ struct DoneItem {
     path: PathBuf,
 }
 
+struct Playback {
+    id: u64,
+    stop: Arc<AtomicBool>,
+    stopping: bool,
+}
+
 struct Toast {
     id: u64,
     error: UiError,
@@ -264,6 +284,7 @@ struct App {
     queue: VecDeque<audio::SynthesisJob>,
     active: Option<ActiveJob>,
     done: Vec<DoneItem>,
+    playback: Option<Playback>,
     next_id: u64,
     busy_files: Vec<u64>,
     status: Option<String>,
@@ -294,6 +315,7 @@ impl App {
             queue: VecDeque::new(),
             active: None,
             done: Vec::new(),
+            playback: None,
             next_id: 0,
             busy_files: Vec::new(),
             status: None,
@@ -426,6 +448,22 @@ impl App {
             Message::Enqueue => return self.enqueue(),
             Message::SetPage(page) => self.page = page,
             Message::RemoveQueued(id) => self.queue.retain(|job| job.id != id),
+            Message::PlayDone(id) => return self.play_done(id),
+            Message::StopPlayback => {
+                if let Some(playback) = &mut self.playback {
+                    playback.stopping = true;
+                    playback.stop.store(true, Ordering::Release);
+                }
+            }
+            Message::PlaybackFinished { id, result } => {
+                if self.playback.as_ref().is_some_and(|playback| playback.id == id) {
+                    self.playback = None;
+                }
+
+                if let Err(error) = result {
+                    self.push_toast(error);
+                }
+            }
             Message::OpenDoneFolder(id) => {
                 let Some(item) = self.done.iter().find(|item| item.id == id) else {
                     return Task::none();
@@ -449,7 +487,9 @@ impl App {
                 }
             }
             Message::DeleteDone(id) => {
-                if self.busy_files.contains(&id) {
+                if self.busy_files.contains(&id)
+                    || self.playback.as_ref().is_some_and(|playback| playback.id == id)
+                {
                     return Task::none();
                 }
 
@@ -511,6 +551,39 @@ impl App {
         }
 
         Task::none()
+    }
+
+    fn play_done(&mut self, id: u64) -> Task<Message> {
+        if self.playback.is_some() {
+            return Task::none();
+        }
+
+        let Some(item) = self.done.iter().find(|item| item.id == id) else {
+            return Task::none();
+        };
+
+        let path = item.path.clone();
+        let stop = Arc::new(AtomicBool::new(false));
+
+        self.playback = Some(Playback {
+            id,
+            stop: Arc::clone(&stop),
+            stopping: false,
+        });
+
+        let work = on_worker(Scope::Output, async move {
+            match tokio::task::spawn_blocking(move || playback::play(&path, stop)).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(error)) => Err(UiError::from_error(
+                    Scope::Output,
+                    "Couldn't play the audio",
+                    &error,
+                )),
+                Err(error) => Err(join_error(Scope::Output, error)),
+            }
+        });
+
+        Task::perform(work, move |result| Message::PlaybackFinished { id, result })
     }
 
     fn enqueue(&mut self) -> Task<Message> {

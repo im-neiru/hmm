@@ -74,13 +74,6 @@ pub(super) fn delete_file(path: &Path) -> io::Result<()> {
     fs::remove_file(path)
 }
 
-pub(super) fn play_audio(_path: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "audio playback is not implemented yet",
-    ))
-}
-
 pub(super) fn open_parent_folder(path: &Path) -> io::Result<()> {
     let folder = path.parent().unwrap_or(path);
 
