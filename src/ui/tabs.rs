@@ -1,5 +1,6 @@
 use iced::{
     Element, Fill,
+    font::Weight,
     widget::{button, container, row, text},
 };
 
@@ -8,7 +9,11 @@ use super::{Message, Page, theme};
 pub(super) fn view(page: Page, queued: usize, done: usize) -> Element<'static, Message> {
     container(
         row![
-            tab("Compose", page == Page::Compose, Message::SetPage(Page::Compose)),
+            tab(
+                "Compose",
+                page == Page::Compose,
+                Message::SetPage(Page::Compose)
+            ),
             tab(
                 &format!("Queue · {queued}"),
                 page == Page::Queue,
@@ -33,9 +38,12 @@ fn tab(title: &str, selected: bool, message: Message) -> Element<'static, Messag
     let title = title.to_owned();
 
     button(
-        container(text(title).size(13))
-            .width(Fill)
-            .center(Fill),
+        container(text(title).size(14).font(iced::Font {
+            weight: Weight::Bold,
+            ..iced::Font::DEFAULT
+        }))
+        .width(Fill)
+        .center(Fill),
     )
     .width(Fill)
     .height(theme::TAB_HEIGHT)
