@@ -9,6 +9,10 @@ cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 
 [dependencies]
+
+# audio playback
+cpal = "0.18.2"
+
 # async runtime
 tokio = { version = "1.54.0", default-features = false, features = [
     "fs",
@@ -56,6 +60,7 @@ iconflow = { version = "2.1.0", default-features = false, features = [
 
 # file system
 dirs = "7.0.0"
+
 [target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))'.dependencies]
 burn = { version = "0.22.1", default-features = false, features = [
     "signal",
