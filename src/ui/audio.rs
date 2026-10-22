@@ -31,8 +31,8 @@ pub(super) struct Generated {
 }
 
 pub(super) fn default_done_dir() -> PathBuf {
-    dirs::cache_dir()
-        .or_else(dirs::audio_dir)
+    dirs::audio_dir()
+        .or_else(dirs::document_dir)
         .unwrap_or_else(env::temp_dir)
         .join("Hmm TTS")
 }
