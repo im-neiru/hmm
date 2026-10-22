@@ -819,7 +819,7 @@ impl App {
                 text("Inference UI by github.com/im-neiru")
                     .size(11)
                     .style(theme::muted),
-                text("Kokoro model trained by hexgrad")
+                text("Kokoro model made by hexgrad")
                     .size(11)
                     .style(theme::muted),
             ]
