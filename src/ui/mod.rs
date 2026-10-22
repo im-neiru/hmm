@@ -814,7 +814,22 @@ impl App {
             .spacing(16)
             .height(Fill);
 
-        let page = container(column![top, body].spacing(18).padding(20))
+        let about = container(
+            column![
+                text("Inference UI by github.com/im-neiru")
+                    .size(11)
+                    .style(theme::muted),
+                text("Kokoro model trained by hexgrad")
+                    .size(11)
+                    .style(theme::muted),
+            ]
+            .spacing(2)
+            .align_x(Horizontal::Center),
+        )
+        .width(Fill)
+        .align_x(Horizontal::Center);
+
+        let page = container(column![top, body, about].spacing(18).padding(20))
             .width(Fill)
             .height(Fill)
             .style(theme::app_background);
