@@ -341,16 +341,16 @@ fn decode_wav(path: &Path) -> io::Result<DecodedAudio> {
         };
 
         let spec = decoded.spec();
-        let current_channels = spec.channels.count();
+        let current_channels = spec.channels().count();
 
         match (sample_rate, channels) {
-            (Some(rate), Some(count)) if rate != spec.rate || count != current_channels => {
+            (Some(rate), Some(count)) if rate != spec.rate() || count != current_channels => {
                 return Err(invalid_data(
                     "The WAV stream changes audio format during playback",
                 ));
             }
             _ => {
-                sample_rate = Some(spec.rate);
+                sample_rate = Some(spec.rate());
                 channels = Some(current_channels);
             }
         }
